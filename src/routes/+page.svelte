@@ -78,13 +78,18 @@
             <div bind:this={container} class="flex-grow overflow-y-auto snap-y snap-mandatory p-4 space-y-8 bg-slate-900 pb-32">
                 {#each steps as step, i}
                     <div class="snap-start min-h-[70vh] border-[8px] md:border-[12px] border-white rounded-[40px] md:rounded-[60px] p-8 md:p-12 flex flex-col justify-center bg-slate-950 shadow-2xl">
-                        <div class="mb-6">
+                        <div class="mb-6 flex justify-between items-center">
                             <span class="bg-blue-600 text-white text-xl md:text-3xl px-6 py-2 rounded-full font-black uppercase">
                                 Step {i + 1}
                             </span>
                         </div>
+
+                        <p class="text-4xl md:text-6xl font-black text-green-400 italic mb-2 tracking-tighter uppercase">
+                            {step.distance}
+                        </p>
+
                         <h2 class="text-[clamp(1.5rem,8vw,4.5rem)] font-black leading-tight text-white italic break-words">
-                            {step}
+                            {step.instruction}
                         </h2>
                     </div>
                 {/each}
