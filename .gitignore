@@ -1,0 +1,17 @@
+# Logic & Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies (Crucial to ignore)
+node_modules/
+.pnpm-debug.log*
+
+# Build output
+.svelte-kit/
+build/
+dist/
+
+# Editor/System files
+.vscode/
+.DS_Store
