@@ -7,11 +7,10 @@ export const actions = {
         const query = formData.get('destination')?.toString();
         const origin = formData.get('origin')?.toString();
 
-        // Fallback coordinates (Irvine/Orange County area)
+        // Default fallback coordinates (Los Angeles)
         let lat = 34.0522;
         let lng = -118.2433;
 
-        // Parse user coordinates if available
         if (origin && origin.includes(',')) {
             const parts = origin.split(',');
             lat = parseFloat(parts[0]);
@@ -21,7 +20,7 @@ export const actions = {
         if (!query) return fail(400, { error: 'Please enter a destination.' });
 
         try {
-            // 1. SEARCH FOR THE PLACE
+            // 1. Search for destination
             const placeRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
                 method: 'POST',
                 headers: {
@@ -34,46 +33,59 @@ export const actions = {
                     locationBias: {
                         circle: {
                             center: { latitude: lat, longitude: lng },
-                            radius: 15000.0 // 15km bias toward user
+                            radius: 15000.0
                         }
                     }
                 })
             });
 
             const placeData = await placeRes.json();
-
             if (!placeData.places || placeData.places.length === 0) {
-                return fail(404, { error: 'Location not found. Try a different name.' });
+                return fail(404, { error: 'Location not found.' });
             }
 
             const bestMatch = placeData.places[0];
             const destCoords = `${bestMatch.location.latitude},${bestMatch.location.longitude}`;
 
-            // 2. GET DRIVING DIRECTIONS
+            // 2. Get directions
             const dirUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${lat},${lng}&destination=${destCoords}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`;
             const dirRes = await fetch(dirUrl);
             const dirData = await dirRes.json();
 
             if (dirData.status !== 'OK') {
-                return fail(500, { error: 'Could not calculate a driving route.' });
+                return fail(500, { error: 'Could not calculate route.' });
             }
 
             const leg = dirData.routes[0].legs[0];
+            const rawSteps = leg.steps;
 
-            // 3. MAP STEPS WITH CLEANED TEXT & DISTANCE
-            const steps = leg.steps.map((s: any) => {
-                // Remove HTML tags (like <b> or <div style...>)
-                let instruction = s.html_instructions.replace(/<[^>]*>?/gm, ' ');
-                
-                // Remove the "Restricted usage road" warning specifically
-                instruction = instruction.replace(/Restricted usage road/gi, '');
-                
-                // Remove double spaces and trim
-                instruction = instruction.replace(/\s\s+/g, ' ').trim();
+            // 3. SHIFTED LOGIC: Pair current distance with NEXT instruction
+            const steps = rawSteps.map((s: any, i: number) => {
+                // The distance you travel on the current road
+                const distanceForThisLeg = s.distance.text;
+
+                // The action to take at the end of this distance (the NEXT step's instruction)
+                const nextStep = rawSteps[i + 1];
+                let actionToTake = "";
+
+                if (i === 0) {
+                    // For the very first card, we tell them where to start
+                    actionToTake = s.html_instructions;
+                } else if (nextStep) {
+                    // For all other cards, tell them what turn is coming up next
+                    actionToTake = nextStep.html_instructions;
+                } else {
+                    actionToTake = "Arrive at your destination";
+                }
+
+                // Clean HTML tags and Google warnings
+                let cleanInstruction = actionToTake.replace(/<[^>]*>?/gm, ' ');
+                cleanInstruction = cleanInstruction.replace(/Restricted usage road/gi, '');
+                cleanInstruction = cleanInstruction.replace(/\s\s+/g, ' ').trim();
 
                 return {
-                    instruction: instruction,
-                    distance: s.distance.text // e.g., "0.5 mi" or "400 ft"
+                    instruction: cleanInstruction,
+                    distance: distanceForThisLeg
                 };
             });
 
@@ -85,7 +97,7 @@ export const actions = {
 
         } catch (e) {
             console.error(e);
-            return fail(500, { error: 'Connection error. Please try again.' });
+            return fail(500, { error: 'Connection error.' });
         }
     }
 };
